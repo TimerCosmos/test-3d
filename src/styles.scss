@@ -1,1 +1,67 @@
 /* You can add global styles to this file, and also import other style files */
+*{
+    margin: 0;
+    padding: 0;
+}
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+#cube {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    overflow: hidden;
+  }
+
+
+  .canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(183deg, rgba(227, 240, 132, 1) 0%, rgba(240, 236, 132, 1) 53%, rgba(224, 149, 74, 1) 100%);
+    z-index: 0; /* changed from -1 */
+    pointer-events: auto;
+  }
+  .vehicle-box{
+    width : 23vw;
+    height: 30vh;
+    border-radius: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid black
+  }
+  .full-page {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    pointer-events: none; /* allow canvas to receive events */
+  }
+  
+  .vehicle-boxes{
+    margin-top: 55vh;
+  }
+  .vehicle-boxes,
+.vehicle-box,
+button {
+  pointer-events: auto; /* only allow UI to receive clicks */
+  position: relative;
+  z-index: 2;
+}
+
+  .vehicle-image{
+    width: 20vw;
+    height: 25vh;
+    border-radius: 20px;
+  }
+
+  .cursor-pointer{
+    cursor: pointer;
+  }
+
+  .txt-black{
+    color: black !important;
+  }

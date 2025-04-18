@@ -1,0 +1,18 @@
+<div class="full-page">
+    <div id="cube" #canvasContainer class="canvas-container"></div>
+    @if(!vehicleSelected){
+        <button mat-stroked-button class="bg-transparent txt-black" (click)="toNewComp()">Navigate</button>
+        <div class="vehicle-boxes w-100 d-flex justify-content-around">
+            <div class="vehicle-box flex-column cursor-pointer" (click)="ChangeVehicle('Car')">
+                <img class="vehicle-image" src="assets/Car.png" alt="Car" />
+                <h4>Car</h4>
+            </div>
+            <div class="vehicle-box flex-column cursor-pointer" (click)="ChangeVehicle('Helicopter')">
+                <img class="vehicle-image" src="assets/Helicopter.png" alt="Helicopter" />
+                <h4>Helicopter</h4>
+            </div>
+        </div>
+    }@else {
+        <button mat-button class="bg-transparent txt-black" (click)="SelectVehicle()">Back to Selection</button>
+    }
+</div>

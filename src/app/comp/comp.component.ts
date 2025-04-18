@@ -141,30 +141,55 @@ this.Renderer.domElement.style.background = 'rgba(0,0,0,0.1)'; // just to confir
     // this.mesh = cloud
     // this.Scene.add(cloud)
     // Directional light (like sunlight)
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(20, 20, 10);
-light.castShadow = true; // ✅ Light casts shadows
-this.Scene.add(light);
+// const light = new THREE.DirectionalLight(0xffffff, 1);
+// light.position.set(20, 20, 10);
+// light.castShadow = true; // ✅ Light casts shadows
+// this.Scene.add(light);
 
-// Floor plane
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
-  new THREE.MeshStandardMaterial({ color: 0x888888 })
-);
-floor.rotation.z = -Math.PI / 2;
-floor.receiveShadow = true; // ✅ Floor shows shadows
-this.Scene.add(floor);
+// // Floor plane
+// const floor = new THREE.Mesh(
+//   new THREE.PlaneGeometry(200, 200),
+//   new THREE.MeshStandardMaterial({ color: 0x888888 })
+// );
+// floor.rotation.z = -Math.PI / 2;
+// floor.receiveShadow = true; // ✅ Floor shows shadows
+// this.Scene.add(floor);
 
-// A cube that casts a shadow
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(2, 2, 2),
-  new THREE.MeshStandardMaterial({ color: 0xff0000 })
-);
-cube.position.set(0, 1, 0);
-cube.castShadow = true; // ✅ Cube casts shadow
-this.Scene.add(cube)
-// Enable shadows in the renderer
-this.Renderer.shadowMap.enabled = true;
+// // A cube that casts a shadow
+// const cube = new THREE.Mesh(
+//   new THREE.BoxGeometry(2, 2, 2),
+//   new THREE.MeshStandardMaterial({ color: 0xff0000 })
+// );
+// cube.position.set(0, 1, 0);
+// cube.castShadow = true; // ✅ Cube casts shadow
+// this.Scene.add(cube)
+// // Enable shadows in the renderer
+// this.Renderer.shadowMap.enabled = true;
+
+    const roadGeometry = new THREE.PlaneGeometry(10,7)
+    const dividerGeometry = new THREE.PlaneGeometry(3,0.5)
+    const smallDividerGeometry = new THREE.PlaneGeometry(1.5,0.5)
+    const roadMaterial = new THREE.MeshStandardMaterial({color : '#000000'})
+    const dividerMaterial = new THREE.MeshBasicMaterial({color : '#FFFFFF',side: THREE.DoubleSide})
+    const thar = new THREE.Mesh(roadGeometry,roadMaterial)
+    const divider = new THREE.Mesh(dividerGeometry,dividerMaterial)
+    const dividerTwo = new THREE.Mesh(smallDividerGeometry,dividerMaterial)
+    const dividerThree = new THREE.Mesh(smallDividerGeometry,dividerMaterial)
+    thar.rotation.x = this.degToRad(-90)
+    divider.rotation.x = this.degToRad(-90)
+    dividerThree.rotation.x = this.degToRad(-90)
+    dividerTwo.rotation.x = this.degToRad(-90)
+    thar.position.set(0,-5,-10)
+    divider.position.set(0,-4.9,-10)
+    dividerTwo.position.set(4.2,-4.9,-10)
+    dividerThree.position.set(-4.2,-4.9,-10)
+    const road = new THREE.Group()
+    road.add(thar)
+    road.add(divider)
+    road.add(dividerTwo)
+    road.add(dividerThree)
+    this.mesh = road
+    this.Scene.add(road)
 
 
   }

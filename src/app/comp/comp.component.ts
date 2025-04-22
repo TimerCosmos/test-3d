@@ -37,7 +37,7 @@ this.Renderer.domElement.style.background = 'rgba(0,0,0,0.1)'; // just to confir
   beforeObjectCreation(){
     this.Renderer.setSize(window.innerWidth, window.innerHeight);
     this.containerRef.nativeElement.appendChild(this.Renderer.domElement);
-    this.Camera.position.z = 10;
+    this.Camera.position.z = 100;
     this.mouseMovements()
   } 
   afterObjectCreation(){
@@ -166,37 +166,58 @@ this.Renderer.domElement.style.background = 'rgba(0,0,0,0.1)'; // just to confir
 // // Enable shadows in the renderer
 // this.Renderer.shadowMap.enabled = true;
 
-    const roadGeometry = new THREE.PlaneGeometry(10,7)
-    const dividerGeometry = new THREE.PlaneGeometry(3,0.5)
-    const smallDividerGeometry = new THREE.PlaneGeometry(1.5,0.5)
-    const roadMaterial = new THREE.MeshStandardMaterial({color : '#000000'})
-    const dividerMaterial = new THREE.MeshBasicMaterial({color : '#FFFFFF',side: THREE.DoubleSide})
-    const thar = new THREE.Mesh(roadGeometry,roadMaterial)
-    const divider = new THREE.Mesh(dividerGeometry,dividerMaterial)
-    const dividerTwo = new THREE.Mesh(smallDividerGeometry,dividerMaterial)
-    const dividerThree = new THREE.Mesh(smallDividerGeometry,dividerMaterial)
-    thar.rotation.x = this.degToRad(-90)
-    divider.rotation.x = this.degToRad(-90)
-    dividerThree.rotation.x = this.degToRad(-90)
-    dividerTwo.rotation.x = this.degToRad(-90)
-    thar.position.set(0,-5,-10)
-    divider.position.set(0,-4.9,-10)
-    dividerTwo.position.set(4.2,-4.9,-10)
-    dividerThree.position.set(-4.2,-4.9,-10)
-    const road = new THREE.Group()
-    road.add(thar)
-    road.add(divider)
-    road.add(dividerTwo)
-    road.add(dividerThree)
-    this.mesh = road
-    this.Scene.add(road)
-
+    // const roadGeometry = new THREE.PlaneGeometry(10,7)
+    // const dividerGeometry = new THREE.PlaneGeometry(3,0.5)
+    // const smallDividerGeometry = new THREE.PlaneGeometry(1.5,0.5)
+    // const roadMaterial = new THREE.MeshStandardMaterial({color : '#000000'})
+    // const dividerMaterial = new THREE.MeshBasicMaterial({color : '#FFFFFF',side: THREE.DoubleSide})
+    // const thar = new THREE.Mesh(roadGeometry,roadMaterial)
+    // const divider = new THREE.Mesh(dividerGeometry,dividerMaterial)
+    // const dividerTwo = new THREE.Mesh(smallDividerGeometry,dividerMaterial)
+    // const dividerThree = new THREE.Mesh(smallDividerGeometry,dividerMaterial)
+    // thar.rotation.x = this.degToRad(-90)
+    // divider.rotation.x = this.degToRad(-90)
+    // dividerThree.rotation.x = this.degToRad(-90)
+    // dividerTwo.rotation.x = this.degToRad(-90)
+    // thar.position.set(0,-5,-10)
+    // divider.position.set(0,-4.9,-10)
+    // dividerTwo.position.set(4.2,-4.9,-10)
+    // dividerThree.position.set(-4.2,-4.9,-10)
+    // const road = new THREE.Group()
+    // road.add(thar)
+    // road.add(divider)
+    // road.add(dividerTwo)
+    // road.add(dividerThree)
+    // this.mesh = road
+    // this.Scene.add(road)
+    const sunLight = new THREE.DirectionalLight(0xffffff, 3);
+    sunLight.position.set(100,100,100)
+    sunLight.castShadow = true;
+    this.Scene.add(sunLight);
+        const target = new THREE.Object3D();
+        target.position.set(0, 0, 0);
+        this.Scene.add(target);
+        sunLight.target = target;
+        sunLight.target.updateMatrixWorld();
+    const goldCoinGeometryOne = new THREE.CylinderGeometry(2,2,1)
+    const outerCoin = new THREE.TorusGeometry(2,1,3.2,20)
+    const goldmaterial = new THREE.MeshBasicMaterial({color : '#FFD700',side: THREE.DoubleSide})
+    const goldCoinPart = new THREE.Mesh(goldCoinGeometryOne,goldmaterial)
+    const outerCoinMesh = new THREE.Mesh(outerCoin,new THREE.MeshBasicMaterial({color : '#FFFFFF',side: THREE.DoubleSide}))
+    goldCoinPart.rotation.x = this.degToRad(90)
+    goldCoinPart.castShadow = true
+    goldCoinPart.receiveShadow = true
+    outerCoinMesh.castShadow = true
+    const goldCoin = new THREE.Group()
+    goldCoin.add(goldCoinPart)
+    goldCoin.add(outerCoinMesh)
+    this.mesh = goldCoin
+    this.Scene.add(goldCoin)
 
   }
   mouseMovements(){
     console.log("helo")
     this.Renderer.domElement.addEventListener('mousedown', (event) => {
-      console.log('mousedown')
       this.isDragging = true;
       this.previousMousePosition = {
         x: event.offsetX,
@@ -204,15 +225,12 @@ this.Renderer.domElement.style.background = 'rgba(0,0,0,0.1)'; // just to confir
       };
     });    
     this.Renderer.domElement.addEventListener('mouseup', () => {
-      console.log('mouseup')
       this.isDragging = false;
     });    
     this.Renderer.domElement.addEventListener('mouseleave', () => {
-      console.log('mouseleave')
       this.isDragging = false;
     });   
     this.Renderer.domElement.addEventListener('mousemove', (event) => {
-      console.log('mousemove')
       if (!this.isDragging || !this.mesh) return;
   
       const deltaMove = {

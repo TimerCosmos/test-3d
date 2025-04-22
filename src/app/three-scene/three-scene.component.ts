@@ -11,6 +11,7 @@ import { AmmoServiceService } from '../services/ammo-service.service';
 import { HelicopterStand } from '../comp/comp.component';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HttpClient } from '@angular/common/http';
+import { BehaviorSubject } from 'rxjs';
 
 
 
@@ -28,14 +29,14 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
   Renderer:THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true, alpha : true });
   degToRad = (degrees: number) => degrees * (Math.PI / 180);
   vehicle = new THREE.Group()
-  currentVehicle : string = "Helicopter"
+  speed:number = 1;
+  currentVehicle : string = "Car"
   pressedkeys = new Set<String>()
   isDragging : boolean= false;
   previousMousePosition:any = {x: 0,y: 0};
   vehicleSelected: boolean = false;
   currentYaw: number=0;
   currentLean: number=0;
-  tilt: boolean = false;
   leanResetTimeout!: ReturnType<typeof setTimeout>;
   clock = new THREE.Clock();
   constructor(public router:Router,public ammoService : AmmoServiceService,private http: HttpClient){}
@@ -50,6 +51,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     this.addClouds()
     this.addRoads()
     this.createGround()
+    this.makeGoldCoin()
     this.BasicSceneSettings()
   }
   createVehicle(){
@@ -62,8 +64,11 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
   BasicSceneSettings(){
     this.Renderer.setSize(window.innerWidth, window.innerHeight);
     this.containerRef.nativeElement.appendChild(this.Renderer.domElement);
-    this.Camera.position.z = this.vehicle.position.z + 100;
-    this.Camera.position.y = this.vehicle.position.y + 20;
+    this.Camera.position.x = this.vehicle.position.x - 50
+    this.Camera.position.z = this.vehicle.position.z ;
+    this.Camera.position.y = this.vehicle.position.y;
+    this.Camera.rotation.copy(this.vehicle.rotation)
+    this.Camera.rotation.y = this.degToRad(-90)
   } 
   loadTreePositions(): Promise<any[]> {
     const files = ['assets/trees1.json'];  
@@ -194,7 +199,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     const sunMaterial = new THREE.MeshStandardMaterial({color : '#FCFFB5'})
     const sunlight = new THREE.AmbientLight(0xffffff,2)
     const sun = new THREE.Mesh(sunGeometry,sunMaterial)
-    sun.position.set(10,5000,-11000)
+    sun.position.set(10,5000,11000)
     this.Scene.add(sun)
     sunlight.position.copy(sun.position)
     this.Scene.add(sunlight)
@@ -204,10 +209,10 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     this.Scene.add(sunLight);
     sunLight.shadow.mapSize.width = 2048;
     sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.camera.left = -1000;
-    sunLight.shadow.camera.right = 1000;
-    sunLight.shadow.camera.top = 1000;
-    sunLight.shadow.camera.bottom = -1000;
+    sunLight.shadow.camera.left = -5000;
+    sunLight.shadow.camera.right = 5000;
+    sunLight.shadow.camera.top = 5000;
+    sunLight.shadow.camera.bottom = -5000;
     sunLight.shadow.camera.near = 1;
     sunLight.shadow.camera.far = 15000;
     const target = new THREE.Object3D();
@@ -217,6 +222,36 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     sunLight.target.updateMatrixWorld();
     this.Renderer.shadowMap.enabled = true;
     this.Renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  }
+  makeGoldCoin(){
+    const goldCoinGeometryOne = new THREE.CylinderGeometry(2,2,1)
+    const goldmaterial = new THREE.MeshBasicMaterial({color : '#EFBF04',side: THREE.DoubleSide})
+    const goldCoinPart = new THREE.Mesh(goldCoinGeometryOne,goldmaterial)
+    goldCoinPart.rotation.x = this.degToRad(90)
+    goldCoinPart.rotation.z = this.degToRad(90)
+    goldCoinPart.position.set(100,0,35)
+    const instancedGoldCoins = new THREE.InstancedMesh(goldCoinGeometryOne,goldmaterial,10);
+    const dummy = new THREE.Object3D();
+    const animate = () => {
+      requestAnimationFrame(animate);
+    
+      for (let i = 0; i < 10; i++) {
+        dummy.rotation.x = this.degToRad(90)
+        dummy.position.set(i * 150 + 100, 0, i % 2 === 0 ? 35 : 55);
+        dummy.rotation.z += this.degToRad(0.5)
+        dummy.updateMatrix();
+        instancedGoldCoins.setMatrixAt(i, dummy.matrix);
+      }
+    
+      instancedGoldCoins.instanceMatrix.needsUpdate = true;
+    
+      this.Renderer.render(this.Scene, this.Camera);
+    };
+    animate()
+    instancedGoldCoins.instanceMatrix.needsUpdate = true;
+    instancedGoldCoins.castShadow = true;
+    instancedGoldCoins.receiveShadow = true;
+    this.Scene.add(instancedGoldCoins)   
   }
   createGround(){
     const groundGeometry = new THREE.PlaneGeometry(100000,100000)
@@ -425,6 +460,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     this.vehicle.add(footStandThree)
     this.vehicle.add(landingOne)
     this.vehicle.add(landingTwo)
+    this.vehicle.rotation.y = this.degToRad(180)
     this.vehicle.traverse((child) => {
       if (child instanceof THREE.Mesh){
         child.receiveShadow = true
@@ -449,51 +485,12 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     };
     animate();
   }
-  mouseMovements(){
-    this.Renderer.domElement.addEventListener('mousedown', (event) => {
-      this.isDragging = true;
-      this.previousMousePosition = {x: event.offsetX,y: event.offsetY};
-    });    
-    this.Renderer.domElement.addEventListener('mouseup', () => {
-      this.isDragging = false;
-    });    
-    this.Renderer.domElement.addEventListener('mouseleave', () => {
-      this.isDragging = false;
-    });  
-    this.Renderer.domElement.addEventListener('mousemove', (event) => {
-      if (!this.isDragging || !this.vehicle) return;
-      const deltaMove = {
-        x: event.offsetX - this.previousMousePosition.x,
-        y: event.offsetY - this.previousMousePosition.y
-      };
-      const rotationSpeed = 0.01;
-      this.Scene.rotation.y += deltaMove.x * rotationSpeed;
-      this.Scene.rotation.x += deltaMove.y * rotationSpeed;
-      this.previousMousePosition = {x: event.offsetX,y: event.offsetY};
-    });     
-  }
   toNewComp(){
     this.router.navigate(['/newComp'])
   }
   vehicleMovements() {
-    let speed = this.currentVehicle === "Helicopter" ? 5 : 1;
-    this.Renderer.domElement.addEventListener('mousemove', (event) => {
-      if (!this.isDragging) return;  
-      const deltaMove = {
-        x: event.offsetX - this.previousMousePosition.x,
-        y: event.offsetY - this.previousMousePosition.y
-      };  
-      const rotationSpeed = 0.005;
-      this.vehicle.rotation.y += deltaMove.x * rotationSpeed;
-      this.vehicle.rotation.x += deltaMove.y * rotationSpeed;  
-      this.previousMousePosition = {
-        x: event.offsetX,
-        y: event.offsetY
-      };
-    });
+    this.speed = this.currentVehicle === "Helicopter" ? 5 : 1;
     window.addEventListener('keyup', (event) => {
-      if (["ArrowRight", "ArrowLeft", "KeyA", "KeyD"].includes(event.code))
-        this.tilt = false;
       this.pressedkeys.delete(event.code);
     });
     window.addEventListener('keydown', (event) => {
@@ -502,23 +499,28 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
       const zdir = this.vehicle.rotation.z;  
       const dir = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(xdir, ydir, zdir, 'XYZ'));  
       if (["ArrowRight", "ArrowLeft", "KeyA", "KeyD"].includes(event.code)) {
-        this.tilt = true;
         this.handleTilt(event.code);
       }  
       this.pressedkeys.add(event.code);  
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'KeyW', 'KeyS', 'KeyD', 'KeyA'].includes(event.code))
         event.preventDefault();
       if (this.pressedkeys.has('KeyW')) {
-        this.vehicle.position.x += -dir.x * speed;
+        this.vehicle.position.x += -dir.x * this.speed;
         if (this.currentVehicle === "Helicopter")
-          this.vehicle.position.y += -dir.y * speed;
-        this.vehicle.position.z += -dir.z * speed;
+          this.vehicle.position.y += -dir.y * this.speed;
+        this.vehicle.position.z += -dir.z * this.speed;
+        this.Camera.position.x -= dir.x * this.speed;
+        this.Camera.position.y -= dir.y * this.speed;
+        this.Camera.position.z -= dir.z * this.speed;
       }
       if (this.pressedkeys.has('KeyS')) {
-        this.vehicle.position.x += dir.x * speed;
+        this.vehicle.position.x += dir.x * this.speed;
         if (this.currentVehicle === "Helicopter")
-          this.vehicle.position.y += dir.y * speed;
-        this.vehicle.position.z += dir.z * speed;
+          this.vehicle.position.y += dir.y * this.speed;
+        this.vehicle.position.z += dir.z * this.speed;
+        this.Camera.position.x += dir.x * this.speed;
+        this.Camera.position.y += dir.y * this.speed;
+        this.Camera.position.z += dir.z * this.speed;
       }
       if (this.currentVehicle === "Helicopter") {  
         if (this.pressedkeys.has('ArrowUp'))
@@ -526,34 +528,41 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
         if (this.pressedkeys.has('ArrowDown'))
             this.vehicle.rotation.z += this.degToRad(1);
       }
-      this.Camera.position.x = this.vehicle.position.x 
-      this.Camera.position.y = this.vehicle.position.y + 20
-      this.Camera.position.z = this.vehicle.position.z + 100
+
     });
   }  
   handleTilt(code: string) {
-    const turnStep = this.degToRad(3); 
+    const turnStep = this.degToRad(1); 
     const maxLean = this.degToRad(30);      
-    const leanStep = this.degToRad(1); 
+    const leanStep = this.degToRad(-1); 
+    const vehiclePos = this.vehicle.position.clone()
+    const cameraPos = this.Camera.position.clone()
+    const offset = cameraPos.sub(vehiclePos)
     this.currentLean = this.currentLean ?? 0;
     const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.vehicle.quaternion).normalize();
     let side = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0));
     if (side.lengthSq() === 0) 
       side = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(1, 0, 0));
     side.normalize();
-    if (this.pressedkeys.has('ArrowLeft') || this.pressedkeys.has('KeyA')) {
+    if (code == 'ArrowLeft' || code == 'KeyA') {
         const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.pressedkeys.has('KeyS') ? -turnStep : turnStep);
+        offset.applyQuaternion(yaw)
+        this.Camera.position.copy(vehiclePos).add(offset)
+        this.Camera.quaternion.premultiply(yaw)
         this.vehicle.quaternion.multiply(yaw);
-      if (this.currentVehicle === "Helicopter" && this.currentLean > -maxLean) {
+      if (this.currentVehicle === "Helicopter" && this.currentLean < maxLean) {
         const lean = new THREE.Quaternion().setFromAxisAngle(side, -leanStep);
         this.vehicle.quaternion.multiply(lean);
         this.currentLean -= leanStep;
       }
     }
-    if (this.pressedkeys.has('ArrowRight') || this.pressedkeys.has('KeyD')) {
+    if (code == 'ArrowRight' || code == 'KeyD') {
         const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), this.pressedkeys.has('KeyS') ? turnStep : -turnStep);
         this.vehicle.quaternion.multiply(yaw);
-      if (this.currentVehicle === "Helicopter" && this.currentLean < maxLean) {
+        offset.applyQuaternion(yaw)
+        this.Camera.position.copy(vehiclePos).add(offset)
+        this.Camera.quaternion.premultiply(yaw)
+      if (this.currentVehicle === "Helicopter" && this.currentLean > -maxLean) {
         const lean = new THREE.Quaternion().setFromAxisAngle(side, leanStep);
         this.vehicle.quaternion.multiply(lean);
         this.currentLean += leanStep;
@@ -563,9 +572,8 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
   ChangeVehicle(vehicle:string){
     this.currentVehicle = vehicle
     this.vehicle.clear()
-    this.vehicle.rotation.y = this.degToRad(0)
+    this.vehicle.rotation.set(0,0,0)
     this.vehicleSelected = true
-    this.mouseMovements()
     this.vehicleMovements()
     this.createVehicle()
     this.BasicSceneSettings()

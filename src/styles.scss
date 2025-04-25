@@ -23,6 +23,7 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
     background-color: #B4EBE6;
     z-index: 0; /* changed from -1 */
     pointer-events: auto;
+    overflow: hidden;
   }
   .vehicle-box{
     width : 23vw;

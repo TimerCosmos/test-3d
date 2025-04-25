@@ -14,7 +14,7 @@ import { HttpClient, HttpClientModule } from '@angular/common/http';
   declarations: [
     AppComponent,
     CompComponent,
-    ThreeSceneComponent
+    ThreeSceneComponent,
   ],
   imports: [
     BrowserModule,

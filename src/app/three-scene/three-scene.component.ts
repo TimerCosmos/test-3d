@@ -7,13 +7,9 @@ import {
 } from '@angular/core';
 import { provideRouter, Router } from '@angular/router';
 import * as THREE from 'three';
-import { AmmoServiceService } from '../services/ammo-service.service';
 import { HelicopterStand } from '../comp/comp.component';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject } from 'rxjs';
-
-
 
 @Component({
   selector: 'app-three-scene',
@@ -39,11 +35,32 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
   currentLean: number=0;
   leanResetTimeout!: ReturnType<typeof setTimeout>;
   clock = new THREE.Clock();
-  constructor(public router:Router,public ammoService : AmmoServiceService,private http: HttpClient){}
-  async ngOnInit(): Promise<void> {
-    await this.ammoService.init(); 
+  constructor(public router:Router,private http: HttpClient){}
+  async ngOnInit() {
+    this.startPhysics()
+    const waitForAmmo = () => {
+      const AmmoLib = (window as any).Ammo;  
+      if (AmmoLib && AmmoLib.btVector3) {
+        const collisionConfiguration = new AmmoLib.btDefaultCollisionConfiguration();
+        const dispatcher = new AmmoLib.btCollisionDispatcher(collisionConfiguration);
+        const broadphase = new AmmoLib.btDbvtBroadphase();
+        const solver = new AmmoLib.btSequentialImpulseConstraintSolver();
+        const physicsWorld = new AmmoLib.btDiscreteDynamicsWorld(
+          dispatcher,
+          broadphase,
+          solver,
+          collisionConfiguration
+        );  
+        physicsWorld.setGravity(new AmmoLib.btVector3(0, -9.8, 0));
+        this.createAmmoGround(AmmoLib, physicsWorld);
+      } else {
+        setTimeout(waitForAmmo, 50);
+      }
+    };  
+    waitForAmmo();
   }
-  ngAfterViewInit(): void {
+  
+  async ngAfterViewInit(): Promise<void>  {
     this.createVehicle()
     this.vehicle.position.z = 50
     this.addSun()
@@ -53,6 +70,13 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     this.createGround()
     this.makeGoldCoin()
     this.BasicSceneSettings()
+  }
+  startPhysics(): void {
+    const animate = () => {
+      requestAnimationFrame(animate);
+      this.Renderer.render(this.Scene, this.Camera);
+    };
+    animate();
   }
   createVehicle(){
     if (this.currentVehicle == "Helicopter"){
@@ -66,7 +90,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     this.containerRef.nativeElement.appendChild(this.Renderer.domElement);
     this.Camera.position.x = this.vehicle.position.x - 50
     this.Camera.position.z = this.vehicle.position.z ;
-    this.Camera.position.y = this.vehicle.position.y;
+    this.Camera.position.y = this.vehicle.position.y + 15;
     this.Camera.rotation.copy(this.vehicle.rotation)
     this.Camera.rotation.y = this.degToRad(-90)
   } 
@@ -80,6 +104,28 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     return Promise.all(files.map(file => this.http.get<any[]>(file).toPromise()))
       .then(results => results.flat()); 
   }
+  createAmmoGround(AmmoLib: any, physicsWorld: any): void {
+    const groundShape = new AmmoLib.btBoxShape(new AmmoLib.btVector3(50, 1, 50));
+  
+    const groundTransform = new AmmoLib.btTransform();
+    groundTransform.setIdentity();
+    groundTransform.setOrigin(new AmmoLib.btVector3(0, -1, 0));
+  
+    const mass = 0;
+    const isDynamic = mass !== 0;
+    const localInertia = new AmmoLib.btVector3(0, 0, 0);
+    if (isDynamic) {
+      groundShape.calculateLocalInertia(mass, localInertia);
+    }
+  
+    const motionState = new AmmoLib.btDefaultMotionState(groundTransform);
+    const rbInfo = new AmmoLib.btRigidBodyConstructionInfo(mass, motionState, groundShape, localInertia);
+    const body = new AmmoLib.btRigidBody(rbInfo);
+  
+    physicsWorld.addRigidBody(body);
+    console.log('Ground added to physics world.');
+  }
+  
   addTrees(){ 
     const treeTrunkGeometry = new THREE.CylinderGeometry(5,5,25,50)
     const treeMaterial = new THREE.MeshStandardMaterial({color : '#A76545'})
@@ -127,24 +173,15 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     });
     const mergedTree = mergeGroupToMesh(Tree)
     this.loadTreePositions().then((positions) => {
-      const instanceCount = positions.length;    
-      const instancedTrees = new THREE.InstancedMesh(
-        mergedTree.geometry,
-        mergedTree.material,
-        instanceCount
-      );    
-      const dummy = new THREE.Object3D();    
-      positions.forEach((pos, i) => {
-        dummy.position.set(pos.x, pos.y, pos.z);
-        dummy.updateMatrix();
-        instancedTrees.setMatrixAt(i, dummy.matrix);
-      });    
-      instancedTrees.castShadow = true;
-      instancedTrees.receiveShadow = true;
-      instancedTrees.instanceMatrix.needsUpdate = true;
-      this.Scene.add(instancedTrees);
+      positions.forEach((pos) => {
+        const treeMesh = mergedTree.clone();
+        treeMesh.position.set(pos.x, pos.y, pos.z);
+        treeMesh.castShadow = true;
+        treeMesh.receiveShadow = true;
+        this.Scene.add(treeMesh);
+      });
     });
-  }
+  }  
   addClouds(){
     const radius = 10;
     const widthSegments = 32;
@@ -369,6 +406,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
         }
       }
     });    
+    const carMesh = mergeGroupToMesh(this.vehicle)
     const animate = () => {
       requestAnimationFrame(animate);
       this.Renderer.render(this.Scene, this.Camera);

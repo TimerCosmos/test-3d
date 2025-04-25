@@ -37,6 +37,16 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "**/*.wasm",
+                "input": "src/assets/ammo.js-main/builds",
+                "output": "/assets/ammo/"
+              },
+              {
+                "glob": "**/*.js",
+                "input": "src/assets/ammo.js-main/builds",
+                "output": "/assets/ammo/"
               }
             ],
             "styles": [
@@ -44,7 +54,10 @@
               "src/styles.scss",
               "bootstrap/dist/css/bootstrap.css"
             ],
-            "scripts": ["bootstrap/dist/js/bootstrap.js"]
+            "scripts": [
+              "bootstrap/dist/js/bootstrap.js",
+              "ammo.js/ammo.js"
+            ]
           },
           "configurations": {
             "production": {

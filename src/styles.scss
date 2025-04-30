@@ -13,7 +13,12 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
     overflow: hidden;
   }
 
-
+.txt-100{
+  font-size: 15px;
+  color: black; /* or any visible color */
+  z-index: 10;
+  position: relative;
+}
   .canvas-container {
     position: absolute;
     top: 0;

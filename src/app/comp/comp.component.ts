@@ -1,4 +1,5 @@
 import { AfterViewInit, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
+import { BehaviorSubject, EMPTY, interval, Subscription, switchMap } from 'rxjs';
 import * as THREE from 'three';
 
 @Component({
@@ -16,10 +17,7 @@ export class CompComponent implements OnInit {
   renderer:THREE.WebGLRenderer = new THREE.WebGLRenderer({ antialias: true, alpha : true });
   degToRad = (degrees: number) => degrees * (Math.PI / 180);
   isDragging : boolean= false;
-  previousMousePosition:any = {
-    x: 0,
-    y: 0
-  };
+  previousMousePosition:any = {x: 0,y: 0};
   rigidBodies: any[] = [];  // Declare rigidBodies array
   physicsWorld: any;
   pressedkeys = new Set<String>()
@@ -28,7 +26,110 @@ export class CompComponent implements OnInit {
   vehicleMeshes!: { chassis: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial, THREE.Object3DEventMap>; wheels: THREE.Mesh<THREE.BufferGeometry<THREE.NormalBufferAttributes>, THREE.Material | THREE.Material[], THREE.Object3DEventMap>[]; };
   clock = new THREE.Clock();
   chassisBody: any;
+  goldCoinBodies : any[]=[]
+  speed:any;
+  coins : number =0;
+  timeLapsed : string = "00:00.000"
+  startCountDown = new BehaviorSubject<boolean>(false)
+  startCountDown$ = this.startCountDown.asObservable()
+  timerSub!: Subscription;
   ngOnInit(): void {
+    this.makeSceneSettings();
+    const listener = new THREE.AudioListener();
+    this.camera.add(listener); 
+    const coinSound = new THREE.Audio(listener);
+    const audioLoader = new THREE.AudioLoader();
+    audioLoader.load('assets/coin.mp3', (buffer) => {
+      coinSound.setBuffer(buffer);
+      coinSound.setVolume(1); 
+    });
+    this.timerSub = this.startCountDown.pipe(
+      switchMap(active => active ? interval(10) : EMPTY)
+    ).subscribe(() => {
+      const time = this.timeLapsed.split(":")
+      var minutes = Number(time[0])
+      var seconds = Number(time[1].split(".")[0])
+      var milliSeconds = Number(time[1].split(".")[1])
+      milliSeconds += 10
+      if(milliSeconds >= 1000){
+        seconds += 1
+        milliSeconds = 0
+      }
+      if (seconds >= 60){
+        minutes += 1
+        seconds = 0
+      }
+      this.timeLapsed = `${minutes}:${seconds}.${milliSeconds}`
+    });
+    const tmpTrans = new (window as any).Ammo.btTransform();
+    const animate = () => {
+      requestAnimationFrame(animate);
+      if (this.physicsWorld) {
+        this.physicsWorld.stepSimulation(1 / 60, 10);
+        for (const obj of this.rigidBodies) {
+          const motionState = obj.body.getMotionState();
+          if (motionState) {
+            motionState.getWorldTransform(tmpTrans);
+            const origin = tmpTrans.getOrigin();
+            const rotation = tmpTrans.getRotation();            
+            obj.mesh.position.set(origin.x(), origin.y(), origin.z());
+            obj.mesh.quaternion.set(rotation.x(), rotation.y(), rotation.z(), rotation.w());
+          }
+        }
+      }
+      if (this.chassisBody) {
+        const motionState = this.chassisBody.getMotionState();
+        if (motionState) {
+          const transform = new (window as any).Ammo.btTransform();
+          motionState.getWorldTransform(transform);
+          const origin = transform.getOrigin();
+          const rotation = transform.getRotation();
+          const offset = new THREE.Vector3(0, 4, -8);
+          const quaternion = new THREE.Quaternion(rotation.x(), rotation.y(), rotation.z(), rotation.w());
+          offset.applyQuaternion(quaternion);
+          this.camera.position.set(origin.x() + offset.x,origin.y() + offset.y,origin.z() + offset.z);
+          this.camera.lookAt(origin.x(), origin.y(), origin.z());
+          (window as any).Ammo.destroy(transform);
+        }
+      }
+      this.goldCoinBodies.forEach(coin => {coin.rotation.y += 0.05;});
+      this.goldCoinBodies.forEach((coin, index) => {
+        if (this.vehicleMeshes.chassis.position.distanceTo(coin.position) < 2) {
+          this.coins += 1
+          if(this.coins == 10)
+            this.startCountDown.next(false)
+          this.scene.remove(coin);
+          this.goldCoinBodies.splice(index, 1);
+          if (coinSound.isPlaying) coinSound.stop();
+          coinSound.play(); 
+        }
+      });
+      if(this.chassisBody)
+        this.speed = this.chassisBody.getLinearVelocity().length();
+      this.renderer.render(this.scene, this.camera);
+    };
+    animate();
+    const waitForAmmo = () => {
+      const AmmoLib = (window as any).Ammo;
+      if (AmmoLib && AmmoLib.btVector3) {
+        const collisionConfiguration = new AmmoLib.btDefaultCollisionConfiguration();
+        const dispatcher = new AmmoLib.btCollisionDispatcher(collisionConfiguration);
+        const broadphase = new AmmoLib.btDbvtBroadphase();
+        const solver = new AmmoLib.btSequentialImpulseConstraintSolver();
+        this.physicsWorld = new AmmoLib.btDiscreteDynamicsWorld(dispatcher,broadphase,solver,collisionConfiguration);
+        this.physicsWorld.setGravity(new AmmoLib.btVector3(0, -9.8, 0));
+        this.createAmmoGround(AmmoLib, this.physicsWorld);
+        // this.createFallingBall(AmmoLib, this.physicsWorld,10,5);
+        this.createVehicle(AmmoLib, this.physicsWorld);
+        this.makeGoldCoins(AmmoLib,this.physicsWorld);
+        this.createRoads(AmmoLib,this.physicsWorld)
+      } else {
+        setTimeout(waitForAmmo, 50);
+      }
+    };
+    waitForAmmo(); 
+  }  
+  makeSceneSettings(){
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 5, 15);
@@ -51,62 +152,7 @@ export class CompComponent implements OnInit {
     light.castShadow = true;  
     this.scene.add(light);
     this.scene.add(new THREE.AmbientLight(0x404040));
-    const tmpTrans = new (window as any).Ammo.btTransform();
-    const animate = () => {
-      requestAnimationFrame(animate);
-      if (this.physicsWorld) {
-        this.physicsWorld.stepSimulation(1 / 60, 10);
-        for (const obj of this.rigidBodies) {
-          const motionState = obj.body.getMotionState();
-          if (motionState) {
-            motionState.getWorldTransform(tmpTrans);
-            const origin = tmpTrans.getOrigin();
-            const rotation = tmpTrans.getRotation();            
-            obj.mesh.position.set(origin.x(), origin.y(), origin.z());
-            obj.mesh.quaternion.set(rotation.x(), rotation.y(), rotation.z(), rotation.w());
-          }
-        }
-      }
-      if (this.chassisBody) {
-        const motionState = this.chassisBody.getMotionState();
-        if (motionState) {
-          const transform = new (window as any).Ammo.btTransform();
-          motionState.getWorldTransform(transform);
-          
-          const origin = transform.getOrigin();
-          const rotation = transform.getRotation();
-          const offset = new THREE.Vector3(-8, 4, 0); 
-          const quaternion = new THREE.Quaternion(
-            rotation.x(), rotation.y(), rotation.z(), rotation.w()
-          );
-          offset.applyQuaternion(quaternion);
-          this.camera.position.set(origin.x() + offset.x,origin.y() + offset.y,origin.z() + offset.z);
-          this.camera.lookAt(origin.x(), origin.y(), origin.z());
-          
-          (window as any).Ammo.destroy(transform);
-        }
-      }
-      this.renderer.render(this.scene, this.camera);
-    };
-    animate();
-    const waitForAmmo = () => {
-      const AmmoLib = (window as any).Ammo;
-      if (AmmoLib && AmmoLib.btVector3) {
-        const collisionConfiguration = new AmmoLib.btDefaultCollisionConfiguration();
-        const dispatcher = new AmmoLib.btCollisionDispatcher(collisionConfiguration);
-        const broadphase = new AmmoLib.btDbvtBroadphase();
-        const solver = new AmmoLib.btSequentialImpulseConstraintSolver();
-        this.physicsWorld = new AmmoLib.btDiscreteDynamicsWorld(dispatcher,broadphase,solver,collisionConfiguration);
-        this.physicsWorld.setGravity(new AmmoLib.btVector3(0, -9.8, 0));
-        this.createAmmoGround(AmmoLib, this.physicsWorld);
-        // this.createFallingBall(AmmoLib, this.physicsWorld,10,5);
-        this.createVehicle(AmmoLib, this.physicsWorld);
-      } else {
-        setTimeout(waitForAmmo, 50);
-      }
-    };
-    waitForAmmo(); 
-  }  
+  }
   createAmmoGround(AmmoLib: any, physicsWorld: any): void {
     const groundShape = new AmmoLib.btBoxShape(new AmmoLib.btVector3(500, 1, 500)); 
     const groundTransform = new AmmoLib.btTransform();
@@ -120,12 +166,34 @@ export class CompComponent implements OnInit {
     const motionState = new AmmoLib.btDefaultMotionState(groundTransform);
     const rbInfo = new AmmoLib.btRigidBodyConstructionInfo(mass, motionState, groundShape, localInertia);
     const body = new AmmoLib.btRigidBody(rbInfo);
-    body.setRestitution(0.8);
+    body.setFriction(5)
     physicsWorld.addRigidBody(body);
     const geometry = new THREE.BoxGeometry(1000, 2, 1000); 
     const material = new THREE.MeshStandardMaterial({ color: "#90C67C" });
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(0, -5, 0);
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+  }
+  createRoads(AmmoLib:any, physicsWorld : any):void{
+    const roadShape = new AmmoLib.btBoxShape(new AmmoLib.btVector3(250,1,5))
+    const roadTransform = new AmmoLib.btTransform();
+    roadTransform.setIdentity();
+    roadTransform.setOrigin(new AmmoLib.btVector3(0,-5,0));
+    const mass = 0;
+    const localInertia = new AmmoLib.btVector3(0,0,0)
+    if (mass !== 0) {
+      roadShape.calculateLocalInertia(mass, localInertia);
+    }
+    const motionState = new AmmoLib.btDefaultMotionState(roadTransform);
+    const rbInfo = new AmmoLib.btRigidBodyConstructionInfo(mass, motionState, roadShape, localInertia);
+    const body = new AmmoLib.btRigidBody(rbInfo);
+    body.setFriction(0.8);
+    physicsWorld.addRigidBody(body);
+    const geometry = new THREE.BoxGeometry(500, 2, 10); 
+    const material = new THREE.MeshStandardMaterial({ color: "#000000" });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(0, -4.9, 0);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
   }
@@ -209,7 +277,6 @@ export class CompComponent implements OnInit {
     const wheelAxleCS = new AmmoLib.btVector3(-1, 0, 0);
     const suspensionRestLength = 0.6;
     const wheelRadius = 0.6;
-  
     const halfTrack = chassisWidth / 2 + 0.2;
     const wheelBase = chassisLength / 2 - 0.7;
     const wheelYOffset = -chassisHeight / 2 + wheelRadius;
@@ -218,7 +285,13 @@ export class CompComponent implements OnInit {
     transform.setIdentity();
     const chassisStartY =-5+ wheelRadius + suspensionRestLength + (chassisHeight / 2);
     transform.setOrigin(new AmmoLib.btVector3(0, chassisStartY, 0));
-    
+    const rotationAngleY = Math.PI / 2; // 90 degrees
+    const halfAngle = rotationAngleY / 2;
+    const sinHalfAngle = Math.sin(halfAngle);
+    const cosHalfAngle = Math.cos(halfAngle);
+    const quat = new AmmoLib.btQuaternion();
+    quat.setValue(0, sinHalfAngle, 0, cosHalfAngle); 
+    transform.setRotation(quat);
     const motionState = new AmmoLib.btDefaultMotionState(transform);
     const localInertia = new AmmoLib.btVector3(0, 0, 0);
     chassisShape.calculateLocalInertia(massVehicle, localInertia);
@@ -226,44 +299,31 @@ export class CompComponent implements OnInit {
     this.chassisBody = new AmmoLib.btRigidBody(rbInfo);
     this.chassisBody.setActivationState(4);
     physicsWorld.addRigidBody(this.chassisBody);
-  
-    // THREE.js chassis mesh
     const chassisGeometry = new THREE.BoxGeometry(chassisWidth, chassisHeight, chassisLength);
     const chassisMaterial = new THREE.MeshStandardMaterial({ color: 0x5500ff });
     const chassisMesh = new THREE.Mesh(chassisGeometry, chassisMaterial);
     chassisMesh.castShadow = true;
     chassisMesh.position.set(0, chassisStartY, 0);
+    chassisMesh.quaternion.set(0, sinHalfAngle, 0, cosHalfAngle);
     this.scene.add(chassisMesh);
-    
-    // Vehicle setup
     const tuning = new AmmoLib.btVehicleTuning();
-    tuning.set_m_suspensionStiffness(20.0);        // How stiff the suspension is
-    tuning.set_m_suspensionCompression(4.0);       // Shock absorber compression speed
-    tuning.set_m_suspensionDamping(2.3);           // Shock absorber rebound damping
-    tuning.set_m_maxSuspensionTravelCm(500.0);     // Max travel in cm
+    tuning.set_m_suspensionStiffness(20.0);        
+    tuning.set_m_suspensionCompression(4.0);       
+    tuning.set_m_suspensionDamping(2.3);           
+    tuning.set_m_maxSuspensionTravelCm(500.0);     
     tuning.set_m_maxSuspensionForce(10000.0); 
     const vehicleRayCaster = new AmmoLib.btDefaultVehicleRaycaster(physicsWorld);
     const vehicle = new AmmoLib.btRaycastVehicle(tuning, this.chassisBody, vehicleRayCaster);
-    vehicle.setCoordinateSystem(0, 1, 2); // x=right, y=up, z=forward
+    vehicle.setCoordinateSystem(0, 1, 2);
     physicsWorld.addAction(vehicle);
-
-
-
-
     this.vehicle = vehicle;
-    
-    // Wheel setup
-    
     const wheelPositions = [
-      { pos: new AmmoLib.btVector3(-halfTrack, wheelYOffset,  wheelBase), front: true },   // Front-left
-      { pos: new AmmoLib.btVector3( halfTrack, wheelYOffset,  wheelBase), front: true },   // Front-right
-      { pos: new AmmoLib.btVector3(-halfTrack, wheelYOffset, -wheelBase), front: false },  // Rear-left
-      { pos: new AmmoLib.btVector3( halfTrack, wheelYOffset, -wheelBase), front: false }   // Rear-right
+      { pos: new AmmoLib.btVector3(-halfTrack, wheelYOffset,  wheelBase), front: true },  
+      { pos: new AmmoLib.btVector3( halfTrack, wheelYOffset,  wheelBase), front: true },   
+      { pos: new AmmoLib.btVector3(-halfTrack, wheelYOffset, -wheelBase), front: false },  
+      { pos: new AmmoLib.btVector3( halfTrack, wheelYOffset, -wheelBase), front: false }   
     ];
-    
     const wheelMeshes: THREE.Mesh[] = [];
-    
-    // Add wheels
     wheelPositions.forEach((wheel, i) => {
       const wheelGeometry = new THREE.CylinderGeometry(wheelRadius, wheelRadius, 0.3, 24);
       wheelGeometry.rotateZ(Math.PI / 2);
@@ -272,26 +332,14 @@ export class CompComponent implements OnInit {
       wheelMesh.castShadow = true;
       this.scene.add(wheelMesh);
       wheelMeshes.push(wheelMesh);
-      vehicle.addWheel(
-        wheel.pos,
-        wheelDirectionCS0,
-        wheelAxleCS,
-        suspensionRestLength,
-        wheelRadius,
-        tuning,
-        wheel.front
-      );
+      vehicle.addWheel(wheel.pos,wheelDirectionCS0,wheelAxleCS,suspensionRestLength,wheelRadius,tuning,wheel.front);
       const wheelInfo = vehicle.getWheelInfo(i);
       wheelInfo.set_m_wheelsDampingRelaxation(2.3);
-wheelInfo.set_m_wheelsDampingCompression(4.4);
-wheelMeshes[i].rotation.set(0, 0, 0);
-      // then update visual positions
+      wheelInfo.set_m_wheelsDampingCompression(4.4);
+      wheelMeshes[i].rotation.set(0, 0, 0);
       vehicle.updateWheelTransform(i, true);
     });
-    
     this.vehicleMeshes = { chassis: chassisMesh, wheels: wheelMeshes };
-    
-    // --- Sync visual chassis & wheels each frame
     const updateVehicle = () => {
       const tm =  this.chassisBody.getWorldTransform();
       const p = tm.getOrigin();
@@ -307,12 +355,11 @@ wheelMeshes[i].rotation.set(0, 0, 0);
         mesh.position.set(wp.x(), wp.y(), wp.z());
         mesh.quaternion.set(wq.x(), wq.y(), wq.z(), wq.w());
       }
-      
       requestAnimationFrame(updateVehicle);
     };
-    
     updateVehicle();
     window.addEventListener('keydown', (event) => {
+      this.startCountDown.next(true)
       this.pressedkeys.add(event.code);    
       const engineForce = 2000;
       const brakeForce = 100;
@@ -326,24 +373,20 @@ wheelMeshes[i].rotation.set(0, 0, 0);
           this.vehicle.setBrake(0, 2);
           this.vehicle.setBrake(0, 3);
         }
-    
         if (this.pressedkeys.has('KeyS')) {
           this.vehicle.applyEngineForce(-engineForce/3, 2); 
           this.vehicle.applyEngineForce(-engineForce/3, 3);
           this.vehicle.setBrake(0, 2);
           this.vehicle.setBrake(0, 3);
         }
-    
         if (this.pressedkeys.has('KeyA') || this.pressedkeys.has('ArrowLeft')) {
           this.vehicle.setSteeringValue(steering, 0); 
           this.vehicle.setSteeringValue(steering, 1); 
         }
-    
         if (this.pressedkeys.has('KeyD') || this.pressedkeys.has('ArrowRight')) {
           this.vehicle.setSteeringValue(-steering, 0);
           this.vehicle.setSteeringValue(-steering, 1);
         }
-
         if (this.pressedkeys.has('Space')) {
           this.vehicle.setBrake(brakeForce, 2);
           this.vehicle.setBrake(brakeForce, 3); 
@@ -352,7 +395,6 @@ wheelMeshes[i].rotation.set(0, 0, 0);
         }
       }
     });
-    
     window.addEventListener('keyup', (event) => {
       if (this.vehicle) {
         if (event.code === 'KeyW' || event.code === 'KeyS') {
@@ -371,10 +413,20 @@ wheelMeshes[i].rotation.set(0, 0, 0);
     
       this.pressedkeys.delete(event.code);
     });
-    
+  }
+  makeGoldCoins(AmmoLib: any, physicsWorld: any) {
+    const goldCoinGeometry = new THREE.CylinderGeometry(0.6, 0.6, 0.2, 32);
+    const goldMaterial = new THREE.MeshBasicMaterial({ color: '#EFBF04', side: THREE.DoubleSide });    
+    for (let i = 0; i < 10; i++) {
+      const mesh = new THREE.Mesh(goldCoinGeometry, goldMaterial);
+      mesh.rotation.z = Math.PI / 2;
+      mesh.position.set(i * 10+5, -3, i % 2 == 0 ? 3.5 : -3.5); 
+      mesh.castShadow = true
+      this.scene.add(mesh);
+      this.goldCoinBodies.push(mesh);
+    }
     
   }
-  
   
   beforeObjectCreation(){
     this.renderer.setSize(window.innerWidth, window.innerHeight);

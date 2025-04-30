@@ -5,7 +5,7 @@ import {
   ViewChild,
   OnInit,
 } from '@angular/core';
-import { provideRouter, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import * as THREE from 'three';
 import { HelicopterStand } from '../comp/comp.component';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -59,7 +59,6 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     };  
     waitForAmmo();
   }
-  
   async ngAfterViewInit(): Promise<void>  {
     this.createVehicle()
     this.vehicle.position.z = 50
@@ -106,26 +105,20 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
   }
   createAmmoGround(AmmoLib: any, physicsWorld: any): void {
     const groundShape = new AmmoLib.btBoxShape(new AmmoLib.btVector3(50, 1, 50));
-  
     const groundTransform = new AmmoLib.btTransform();
     groundTransform.setIdentity();
     groundTransform.setOrigin(new AmmoLib.btVector3(0, -1, 0));
-  
     const mass = 0;
     const isDynamic = mass !== 0;
     const localInertia = new AmmoLib.btVector3(0, 0, 0);
-    if (isDynamic) {
+    if (isDynamic) 
       groundShape.calculateLocalInertia(mass, localInertia);
-    }
-  
     const motionState = new AmmoLib.btDefaultMotionState(groundTransform);
     const rbInfo = new AmmoLib.btRigidBodyConstructionInfo(mass, motionState, groundShape, localInertia);
     const body = new AmmoLib.btRigidBody(rbInfo);
-  
     physicsWorld.addRigidBody(body);
     console.log('Ground added to physics world.');
   }
-  
   addTrees(){ 
     const treeTrunkGeometry = new THREE.CylinderGeometry(5,5,25,50)
     const treeMaterial = new THREE.MeshStandardMaterial({color : '#A76545'})
@@ -271,7 +264,6 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
     const dummy = new THREE.Object3D();
     const animate = () => {
       requestAnimationFrame(animate);
-    
       for (let i = 0; i < 10; i++) {
         dummy.rotation.x = this.degToRad(90)
         dummy.position.set(i * 150 + 100, 0, i % 2 === 0 ? 35 : 55);
@@ -279,9 +271,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
         dummy.updateMatrix();
         instancedGoldCoins.setMatrixAt(i, dummy.matrix);
       }
-    
       instancedGoldCoins.instanceMatrix.needsUpdate = true;
-    
       this.Renderer.render(this.Scene, this.Camera);
     };
     animate()
@@ -566,7 +556,6 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
         if (this.pressedkeys.has('ArrowDown'))
             this.vehicle.rotation.z += this.degToRad(1);
       }
-
     });
   }  
   handleTilt(code: string) {
@@ -622,9 +611,7 @@ export class ThreeSceneComponent implements AfterViewInit,OnInit {
 }
 export function mergeGroupToMesh(group: THREE.Group): THREE.Mesh {
   group.updateMatrixWorld(true);
-
   const geometries: THREE.BufferGeometry[] = [];
-
   group.traverse((child) => {
     if ((child as THREE.Mesh).isMesh) {
       const mesh = child as THREE.Mesh;

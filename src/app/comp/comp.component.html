@@ -3,6 +3,12 @@
         <div class=" p-2">Current Speed : {{speed | number : '1.0-0'}} </div>
         <div class=" p-2">Coins collected : {{coins}} </div>
         <div class="p-2">Time lapsed : {{timeLapsed}} </div>
+        <div class="p-2">Time Travel Potential : {{timeTravelTime}} </div>
     </div>
+    @if(!startCountDown.getValue() && coins == 0){
+        <button mat-stroked-button class="bg-transparent txt-black" (click)="StartGame()"> Start</button>
+    }@else if(!startCountDown.getValue() && coins > 0){
+        <button mat-stroked-button class="bg-transparent txt-black" (click)="ReStartGame()"> Restart Game</button>
+    }
 <div  #canvasContainer class="canvas-container"></div>
 </div>

@@ -30,11 +30,12 @@ export class CompComponent implements OnInit {
   speed:any;
   coins : number =0;
   timeLapsed : string = "00:00.000"
+  timeTravelTime:string = "00:00.000"
   startCountDown = new BehaviorSubject<boolean>(false)
-  startCountDown$ = this.startCountDown.asObservable()
   timerSub!: Subscription;
   ngOnInit(): void {
     this.makeSceneSettings();
+    this.timeTravelling()
     const listener = new THREE.AudioListener();
     this.camera.add(listener); 
     const coinSound = new THREE.Audio(listener);
@@ -94,16 +95,25 @@ export class CompComponent implements OnInit {
       }
       this.goldCoinBodies.forEach(coin => {coin.rotation.y += 0.05;});
       this.goldCoinBodies.forEach((coin, index) => {
-        if (this.vehicleMeshes.chassis.position.distanceTo(coin.position) < 2) {
+        if (this.vehicleMeshes.chassis.position.distanceTo(coin.position) < 2 && coin.visible == true) {
           this.coins += 1
+          if (this.coins == 1)
+            this.startCountDown.next(true)
           if(this.coins == 10)
             this.startCountDown.next(false)
           this.scene.remove(coin);
           this.goldCoinBodies.splice(index, 1);
           if (coinSound.isPlaying) coinSound.stop();
           coinSound.play(); 
+          console.log(this.goldCoinBodies.length)
+          this.goldCoinBodies[0].visible = false
         }
       });
+      if(this.goldCoinBodies.length == 1){
+        if(this.timeLapsed == this.timeTravelTime && this.vehicleMeshes.chassis.position.distanceTo(this.goldCoinBodies[0].position) < 0.5){
+          console.log(true)
+        }
+      }
       if(this.chassisBody)
         this.speed = this.chassisBody.getLinearVelocity().length();
       this.renderer.render(this.scene, this.camera);
@@ -121,7 +131,7 @@ export class CompComponent implements OnInit {
         this.createAmmoGround(AmmoLib, this.physicsWorld);
         // this.createFallingBall(AmmoLib, this.physicsWorld,10,5);
         this.createVehicle(AmmoLib, this.physicsWorld);
-        this.makeGoldCoins(AmmoLib,this.physicsWorld);
+        this.makeGoldCoins();
         this.createRoads(AmmoLib,this.physicsWorld)
       } else {
         setTimeout(waitForAmmo, 50);
@@ -129,8 +139,15 @@ export class CompComponent implements OnInit {
     };
     waitForAmmo(); 
   }  
+  timeTravelling(){
+
+  }
   makeSceneSettings(){
+    this.coins = 0
+    this.timeLapsed = "00:00.000"
+    this.startCountDown.next(false)
     this.scene = new THREE.Scene();
+    this.goldCoinBodies = []
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 5, 15);
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -176,7 +193,7 @@ export class CompComponent implements OnInit {
     this.scene.add(mesh);
   }
   createRoads(AmmoLib:any, physicsWorld : any):void{
-    const roadShape = new AmmoLib.btBoxShape(new AmmoLib.btVector3(250,1,5))
+    const roadShape = new AmmoLib.btBoxShape(new AmmoLib.btVector3(200,1,5))
     const roadTransform = new AmmoLib.btTransform();
     roadTransform.setIdentity();
     roadTransform.setOrigin(new AmmoLib.btVector3(0,-5,0));
@@ -190,12 +207,28 @@ export class CompComponent implements OnInit {
     const body = new AmmoLib.btRigidBody(rbInfo);
     body.setFriction(0.8);
     physicsWorld.addRigidBody(body);
-    const geometry = new THREE.BoxGeometry(500, 2, 10); 
+    const geometry = new THREE.BoxGeometry(400, 2, 10); 
     const material = new THREE.MeshStandardMaterial({ color: "#000000" });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(0, -4.9, 0);
+    mesh.position.set(198, -4.9, 0);
     mesh.receiveShadow = true;
     this.scene.add(mesh);
+
+    const innerRadius = 25;
+    const outerRadius = 50;
+    const thetaStart = 0;
+    const thetaLength =2* Math.PI ; // Quarter circle
+    
+    const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 32, 1, thetaStart, thetaLength);
+    ringGeometry.rotateX(-Math.PI / 2); // Lay it flat
+    
+    const roadMaterial = new THREE.MeshStandardMaterial({ color: '#000000', side: THREE.DoubleSide });
+    const roadMesh = new THREE.Mesh(ringGeometry, roadMaterial);
+    roadMesh.position.set(-11, -3.9, 0);
+    roadMesh.receiveShadow = true;
+    this.scene.add(roadMesh);
+    
+
   }
   createFallingBall(AmmoLib: any, physicsWorld: any, yPosition:number, ballMass:number): void {
     const radius = 1;
@@ -359,7 +392,6 @@ export class CompComponent implements OnInit {
     };
     updateVehicle();
     window.addEventListener('keydown', (event) => {
-      this.startCountDown.next(true)
       this.pressedkeys.add(event.code);    
       const engineForce = 2000;
       const brakeForce = 100;
@@ -394,6 +426,22 @@ export class CompComponent implements OnInit {
           this.vehicle.applyEngineForce(0, 3);
         }
       }
+      if(!setsAreEqual(this.pressedkeys, new Set(['KeyW','ArrowUp'])) || !this.startCountDown.getValue())
+        return;
+      const time = this.timeTravelTime.split(":")
+      var minutes = Number(time[0])
+      var seconds = Number(time[1].split(".")[0])
+      var milliSeconds = Number(time[1].split(".")[1])
+      milliSeconds += 100
+      if(milliSeconds >= 1000){
+        seconds += 1
+        milliSeconds = 0
+      }
+      if (seconds >= 60){
+        minutes += 1
+        seconds = 0
+      }
+      this.timeTravelTime = `${minutes}:${seconds}.${milliSeconds}`
     });
     window.addEventListener('keyup', (event) => {
       if (this.vehicle) {
@@ -414,13 +462,13 @@ export class CompComponent implements OnInit {
       this.pressedkeys.delete(event.code);
     });
   }
-  makeGoldCoins(AmmoLib: any, physicsWorld: any) {
+  makeGoldCoins() {
     const goldCoinGeometry = new THREE.CylinderGeometry(0.6, 0.6, 0.2, 32);
     const goldMaterial = new THREE.MeshBasicMaterial({ color: '#EFBF04', side: THREE.DoubleSide });    
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 2; i++) {
       const mesh = new THREE.Mesh(goldCoinGeometry, goldMaterial);
       mesh.rotation.z = Math.PI / 2;
-      mesh.position.set(i * 10+5, -3, i % 2 == 0 ? 3.5 : -3.5); 
+      mesh.position.set(50, -3, i % 2 == 0 ? 3.5 : -3.5); 
       mesh.castShadow = true
       this.scene.add(mesh);
       this.goldCoinBodies.push(mesh);
@@ -471,6 +519,12 @@ export class CompComponent implements OnInit {
 
     });    
   }
+  StartGame(){
+    this.startCountDown.next(true)
+  }
+  ReStartGame(){
+    window.location.reload()
+  }
 }
 export class HelicopterStand extends THREE.Curve<THREE.Vector3>{
   scale: number;
@@ -505,4 +559,12 @@ export class TreeTrunk extends THREE.Curve<THREE.Vector3>{
   
     return optionalTarget.set(tx, ty, tz).multiplyScalar(this.scale);
   }
+}
+
+export function setsAreEqual(setA: Set<any>, setB: Set<any>): boolean {
+  if (setA.size !== setB.size) return false;
+  for (const item of setA) {
+    if (!setB.has(item)) return false;
+  }
+  return true;
 }
